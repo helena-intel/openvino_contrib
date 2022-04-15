@@ -52,8 +52,10 @@ def load_ov_model_from_pytorch(model, inputs=None):
 
     buf = io.BytesIO()
     if inputs is None:
-        dummy_input_ids = torch.zeros((1, 18), dtype=torch.int32)
-        dummy_mask = torch.zeros((1, 18), dtype=torch.int32)
+        dummy_input_ids = torch.zeros((1, 18), dtype=torch.int64)
+        dummy_mask = torch.zeros((1, 18), dtype=torch.int64)
+        dummy_tokens = torch.zeros((1, 18), dtype=torch.int64)
+        input_names = [model.main_input_name, "attention_mask"]
         if model.config.model_type == "gpt2":
             if model.config.use_cache:
                 raise NotImplementedError("GPT2 model with use_cache=True is not implemented for OpenVINO backend")
@@ -63,8 +65,6 @@ def load_ov_model_from_pytorch(model, inputs=None):
             inputs = torch.zeros((1, 16000), dtype=torch.float32)
         else:
             inputs = (dummy_input_ids, dummy_mask)
-
-        input_names = [model.main_input_name, "attention_mask"]
     else:
         input_names = []
         for name, tensor in inputs.items():
@@ -80,6 +80,8 @@ def load_ov_model_from_pytorch(model, inputs=None):
         inputs = tuple(inputs.values())
 
     if model.__class__.__name__.endswith("ForQuestionAnswering"):
+        inputs = (dummy_input_ids, dummy_mask, dummy_tokens)
+        input_names.append("token_type_ids")
         outputs = ["output_s", "output_e"]
     else:
         outputs = ["output"]
@@ -101,7 +103,7 @@ def load_ov_model_from_pytorch(model, inputs=None):
             buf if not use_external_data_format else os.path.join(model_cache_dir, "model.onnx"),
             input_names=input_names,
             output_names=outputs,
-            opset_version=11,
+            opset_version=12,
             use_external_data_format=use_external_data_format,
         )
 
@@ -498,7 +500,10 @@ class OVPreTrainedModel(GenerationMixin):
         if arch.endswith("ForSequenceClassification"):
             return SequenceClassifierOutput(logits=logits)
         elif arch.endswith("ForQuestionAnswering"):
-            return QuestionAnsweringModelOutput(start_logits=outs["output_s"], end_logits=outs["output_e"])
+            # Get output names from model.
+            # For models quantized with NNCF, output names are currently not "output_s" and "output_e"
+            output_s, output_e = list(outs.keys())
+            return QuestionAnsweringModelOutput(start_logits=outs[output_s], end_logits=outs[output_e])
         else:
             return ModelOutput(logits=torch.tensor(logits), past_key_values=past_key_values)
 
