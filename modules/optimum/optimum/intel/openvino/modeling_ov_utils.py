@@ -80,8 +80,8 @@ def load_ov_model_from_pytorch(model, inputs=None):
         inputs = tuple(inputs.values())
 
     if model.__class__.__name__.endswith("ForQuestionAnswering") and is_openvino_api_2:
-        inputs = (dummy_input_ids, dummy_mask, dummy_tokens)
-        input_names.append("token_type_ids")
+        inputs = (dummy_input_ids, dummy_mask) # , dummy_tokens)
+        # input_names.append("token_type_ids")
         outputs = ["output_s", "output_e"]
     else:
         outputs = ["output"]
