@@ -104,6 +104,10 @@ jobs:
         python -m pip install ${{ matrix.transformers-version }} -r requirements.txt
         sudo apt-get install -y libsndfile1
 
+    - name: pip freeze
+      run: |
+        pip freeze
+ 
     - name: Prepare examples
       working-directory: modules/optimum/tests/nncf
       run: |
