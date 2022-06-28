@@ -506,9 +506,15 @@ class OVPreTrainedModel(GenerationMixin):
         if arch.endswith("ForSequenceClassification"):
             return SequenceClassifierOutput(logits=logits)
         elif arch.endswith("ForQuestionAnswering"):
-            # Get output names from model.
-            # For quantized models, output names are not necessarily "output_s" and "output_e"
-            output_s, output_e = list(outs.keys())
+            if is_openvino_api_2:
+                # Get output names from model.
+                # For quantized models, output names are not necessarily "output_s" and "output_e"
+                output_s, output_e = list(outs.keys())
+            else:
+                # For OpenVINO API 1.0, output names are not necessarily in correct order
+                # QA models are expected to have output_s and output_e keys.
+                output_s, output_e = "output_s", "output_e"
+
             return QuestionAnsweringModelOutput(start_logits=outs[output_s], end_logits=outs[output_e])
         else:
             return ModelOutput(logits=torch.tensor(logits), past_key_values=past_key_values)
