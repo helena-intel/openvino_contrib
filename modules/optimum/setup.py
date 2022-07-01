@@ -21,8 +21,9 @@ install_requires = [
 
 nncf_deps = [
     "openvino-dev[onnx]",
-    "nncf",
+    "nncf @ git+https://github.com/openvinotoolkit/nncf.git@release_v230",
     "transformers<4.16.0",
+    "datasets",
 ]
 
 # Add patches as data

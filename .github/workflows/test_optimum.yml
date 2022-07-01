@@ -9,81 +9,23 @@ on:
       - ".github/workflows/test_optimum.yml"
 
 jobs:
-  check_code_style:
-    name: "Codestyle"
-
-    runs-on: ubuntu-18.04
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Setup Python 3.7
-      uses: actions/setup-python@v2
-      with:
-        python-version: 3.7
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install flake8 black
-
-    - name: Check code style
-      working-directory: modules/optimum
-      run: |
-        black --check .
-        flake8 .
-
-
-  test_runtime:
-    name: "Runtime"
-
-    runs-on: ubuntu-18.04
-    strategy:
-      matrix:
-        transformers-version: [
-          "transformers[tf-cpu]==2.11.0",
-          "transformers[torch,tf-cpu] torch==1.9.1",
-        ]
-        openvino-version: [
-          "openvino-dev==2021.4.2",
-          "openvino-dev==2022.1.0",
-        ]
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Setup Python 3.7
-      uses: actions/setup-python@v2
-      with:
-        python-version: 3.7
-
-    - name: Install package
-      working-directory: modules/optimum
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install .
-
-    - name: Install test dependencies
-      working-directory: modules/optimum/tests/openvino
-      run: |
-        python -m pip install ${{ matrix.openvino-version }}
-        python -m pip install ${{ matrix.transformers-version }} -r requirements.txt
-        sudo apt-get install -y libsndfile1
-
-    - name: Test OpenVINO backend
-      working-directory: modules/optimum/tests/openvino
-      run: |
-        python -m unittest -v
-
   test_examples:
     name: "Examples"
 
-    runs-on: ubuntu-18.04
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-18.04, ubuntu-20.04, windows-2019]
+        python: [3.7, 3.9]
+
     steps:
     - uses: actions/checkout@v2
 
     - name: Setup Python 3.8
       uses: actions/setup-python@v2
       with:
-        python-version: 3.8
+        python-version: ${{ matrix.python }}
 
     - name: Install package
       working-directory: modules/optimum
@@ -99,20 +41,21 @@ jobs:
   test_nncf:
     name: "NNCF"
 
-    runs-on: ubuntu-18.04
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        transformers-version: [
-          "transformers[torch]==4.11.0",
-          "transformers[torch]",
-        ]
+        transformers-version: ["transformers[torch]", ]
+        os: [ubuntu-18.04, ubuntu-20.04, windows-2019, windows-2022]
+        python: [3.7, 3.9]
+
     steps:
     - uses: actions/checkout@v2
-
-    - name: Setup Python 3.7
+    - uses: ilammy/msvc-dev-cmd@v1
+    - name: Setup Python
       uses: actions/setup-python@v2
       with:
-        python-version: 3.7
+        python-version: ${{ matrix.python }}
 
     - name: Install package
       working-directory: modules/optimum
@@ -124,21 +67,34 @@ jobs:
       working-directory: modules/optimum/tests/nncf
       run: |
         python -m pip install ${{ matrix.transformers-version }} -r requirements.txt
-        sudo apt-get install -y libsndfile1
 
     - name: pip freeze
       run: |
         pip freeze
 
+    - name: Install sndfile (Linux)
+      run: |
+        sudo apt-get install -y libsndfile1
+      if: runner.os == 'Linux'
+
     - name: Prepare examples
       working-directory: modules/optimum/tests/nncf
       run: |
-        ver=$(python -c "import transformers; print(transformers.__version__)")
-        wget https://raw.githubusercontent.com/huggingface/transformers/v${ver}/examples/pytorch/token-classification/run_ner.py -P examples/pytorch/token-classification
-        wget https://raw.githubusercontent.com/huggingface/transformers/v4.15.0/examples/pytorch/audio-classification/run_audio_classification.py -P examples/pytorch/audio-classification
-        patch -p1 < run_ner.patch
-        patch -p1 < run_audio_classification.patch
-
+        # Github Actions curl does not support --output-dir, Windows does not have wget
+        curl -O https://raw.githubusercontent.com/huggingface/transformers/v4.15.0/examples/pytorch/token-classification/run_ner.py 
+        curl -O https://raw.githubusercontent.com/huggingface/transformers/v4.15.0/examples/pytorch/audio-classification/run_audio_classification.py
+        mkdir examples
+        mkdir examples/pytorch
+        mkdir examples/pytorch/audio-classification
+        mkdir examples/pytorch/token-classification
+        cp run_ner.py examples/pytorch/token-classification
+        cp run_audio_classification.py examples/pytorch/audio-classification
+        # patch -p1 < run_ner.patch
+        # patch -p1 < run_audio_classification.patch
+        # use git apply patch to work on both Windows and Linux
+        git apply --directory modules/optimum/tests/nncf --verbose --whitespace=fix --unsafe-paths run_ner.patch
+        git apply --directory modules/optimum/tests/nncf --verbose --whitespace=fix --unsafe-paths run_audio_classification.patch
+        
     - name: Test NNCF
       working-directory: modules/optimum/tests/nncf
       run: |
