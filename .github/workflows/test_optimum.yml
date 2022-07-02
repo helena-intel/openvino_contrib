@@ -16,8 +16,8 @@ jobs:
     strategy:
       matrix:
         nncf-version: [
-          "nncf==2.1.0",
-          "nncf==2.2.0"
+          "git+https://github.com/openvinotoolkit/nncf.git@90a48c93d08f859dd648b1612f65c5d7ed59c34b",
+          "git+https://github.com/openvinotoolkit/nncf.git@5f162c98b2e54ecacf21c56b2396c7f00b7d8bd9"
         ]
     steps:
     - uses: actions/checkout@v2
@@ -36,6 +36,7 @@ jobs:
     - name: Install test dependencies
       working-directory: modules/optimum/tests/nncf
       run: |
+        pip uninstall -y nncf
         python -m pip install ${{ matrix.nncf-version }} -r requirements.txt
         sudo apt-get install -y libsndfile1
 
